@@ -1,3 +1,4 @@
+//Can probably look at this https://stackoverflow.com/questions/55493003/using-gcloud-speech-api-for-real-time-speech-recognition-in-dart-flutter
 import 'package:flutter/material.dart';
 import 'package:speech_recognition/speech_recognition.dart';
 
@@ -24,6 +25,12 @@ class _VoiceHomeState extends State<VoiceHome> {
   bool _isListening = false;
 
   String resultText = "";
+  String stateText = "";
+  String tempText = "";
+
+  bool completed = false;
+
+  Container textContainer;
 
   @override
   void initState() {
@@ -35,16 +42,24 @@ class _VoiceHomeState extends State<VoiceHome> {
     _speechRecognition = SpeechRecognition();
 
     _speechRecognition.setAvailabilityHandler(
-        (bool result) => setState(() => _isAvailable = result));
+        (bool result) => setState(() => _isAvailable = true));
 
     _speechRecognition.setRecognitionStartedHandler(
-        () => setState(() => _isListening = true));
+        () => setState(() => {_isListening = true, stateText = "isListening"}));
 
     _speechRecognition.setRecognitionResultHandler(
         (String speech) => setState(() => resultText = speech));
 
-    _speechRecognition.setRecognitionCompleteHandler(
-        () => setState(() => _isListening = false));
+    _speechRecognition.setRecognitionCompleteHandler(() => setState(() => {
+          if (completed == false)
+            {
+              _isListening = false,
+              _isAvailable = true,
+              stateText = "isNotListening",
+              tempText = resultText + "\n\n" + tempText,
+              completed = true
+            }
+        }));
 
     _speechRecognition
         .activate()
@@ -54,57 +69,101 @@ class _VoiceHomeState extends State<VoiceHome> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
+      resizeToAvoidBottomInset: false,
+      body: SingleChildScrollView(
+          //padding: EdgeInsets.all(30.0),
           child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: <Widget>[
-          Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: <Widget>[
-              FloatingActionButton(
-                child: Icon(Icons.cancel),
-                mini: true,
-                backgroundColor: Colors.deepOrange,
-                onPressed: () {
-                  if (_isListening)
-                    _speechRecognition.cancel().then((result) => setState(() {
-                          _isListening = result;
-                          resultText = "";
-                        }));
-                },
+              Container(
+                  width: MediaQuery.of(context).size.width * 0.3,
+                  decoration:
+                      BoxDecoration(borderRadius: BorderRadius.circular(6.0)),
+                  alignment: AlignmentDirectional.center,
+                  padding:
+                      EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+                  child: Text(stateText,
+                      style: TextStyle(
+                          fontSize: 24.0,
+                          color: Colors.black.withOpacity(0.05)))),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: <Widget>[
+                  FloatingActionButton(
+                    child: Icon(Icons.cancel),
+                    mini: true,
+                    backgroundColor: Colors.red,
+                    onPressed: () {
+                      if (_isListening)
+                        _speechRecognition
+                            .cancel()
+                            .then((result) => setState(() {
+                                  _isListening = result;
+                                  resultText = "";
+                                  stateText = result.toString();
+                                }))
+                            .catchError((onError) => setState(
+                                () => {resultText = "", stateText = onError}));
+                    },
+                  ),
+                  FloatingActionButton(
+                    child: Icon(Icons.mic),
+                    backgroundColor: Colors.pink,
+                    onPressed: () {
+                      if (_isAvailable && !_isListening) {
+                        completed = false;
+                        _speechRecognition.listen(locale: "en_US").then(
+                            (result) => {
+                                  print('$result'),
+                                  setState(() => stateText = result.toString())
+                                });
+                      }
+                    },
+                  ),
+                  FloatingActionButton(
+                    child: Icon(Icons.stop),
+                    mini: true,
+                    backgroundColor: Colors.deepOrange,
+                    onPressed: () {
+                      if (_isListening)
+                        _speechRecognition
+                            .stop()
+                            .then((result) => setState(() => {
+                                  _isListening = result,
+                                  stateText = result.toString()
+                                }))
+                            .catchError((onError) => setState(() => {
+                                  //resultText = "",
+                                  stateText = onError
+                                }));
+                      else {
+                        resultText = "";
+                        tempText = "";
+                        _isAvailable = true;
+                      }
+                    },
+                  )
+                ],
               ),
-              FloatingActionButton(
-                child: Icon(Icons.mic),
-                backgroundColor: Colors.pink,
-                onPressed: () {
-                  if (_isAvailable && !_isListening)
-                    _speechRecognition
-                        .listen(locale: "en_US")
-                        .then((result) => print('$result'));
-                },
-              ),
-              FloatingActionButton(
-                child: Icon(Icons.stop),
-                mini: true,
-                backgroundColor: Colors.deepPurple,
-                onPressed: () {
-                  if (_isListening)
-                    _speechRecognition.stop().then(
-                        (result) => setState(() => _isListening = result));
-                },
-              )
+              ConstrainedBox(
+                  constraints: new BoxConstraints(
+                    minHeight: 5.0,
+                    minWidth: MediaQuery.of(context).size.width * 0.8,
+                    maxHeight: MediaQuery.of(context).size.height * 0.7,
+                    maxWidth: MediaQuery.of(context).size.width * 0.8,
+                  ),
+                  child: SingleChildScrollView(
+                      //width: MediaQuery.of(context).size.width * 0.8,
+                      //decoration: BoxDecoration(
+                      //color: Colors.lightBlue.withOpacity(0.4),
+                      //borderRadius: BorderRadius.circular(6.0)),
+                      padding:
+                          EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
+                      //margin: EdgeInsets.symmetric(vertical: 12.0),
+                      child: Text(tempText, style: TextStyle(fontSize: 24.0))))
             ],
-          ),
-          Container(
-              width: MediaQuery.of(context).size.width * 0.6,
-              decoration: BoxDecoration(
-                  color: Colors.cyanAccent[100],
-                  borderRadius: BorderRadius.circular(6.0)),
-              padding: EdgeInsets.symmetric(vertical: 8.0, horizontal: 12.0),
-              child: Text(resultText, style: TextStyle(fontSize: 24.0)))
-        ],
-      )),
+          )),
     );
   }
 }
